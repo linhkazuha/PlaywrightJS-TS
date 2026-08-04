@@ -38,30 +38,15 @@ apiContext.post(url, {
 ```json
 {"orders":[],"productOrderId":[],"message":"Order Placed Successfully"}
 ```
-Server nói "thành công" nhưng `orders` lại **rỗng**. Lý do: API `create-order` **không tạo đơn hàng trực tiếp** từ `productOrderedId` gửi lên — nó chỉ **chuyển giỏ hàng (cart) hiện có của tài khoản** thành đơn hàng. Vì test gọi thẳng `create-order` mà chưa từng "thêm sản phẩm vào giỏ", nên giỏ hàng trống → không có gì để tạo đơn.
+Server nói "thành công" nhưng `orders` lại **rỗng**. Nguyên nhân thật sự (xem kỹ ở Lỗi 3) là do `orders` gửi lên đang là **object đơn**, trong khi server yêu cầu **mảng**.
 
-**Cách phát hiện:** So sánh request thật (bấm nút "Đặt hàng" trên UI, xem tab Network) với request mà code đang gửi — thấy trước đó UI luôn có bước gọi API `add-to-cart`.
-
-**Cách fix:** Thêm 2 bước trước khi gọi `create-order`:
-1. Gọi API lấy danh sách sản phẩm (`get-all-products`), tìm đúng sản phẩm theo `productOrderedId`.
-2. Gọi API `add-to-cart` với sản phẩm đó.
-
-```js
-const product = productsResponseJson.data.find(p => p._id === orderPayLoad.productOrderedId);
-
-await apiContext.post(".../api/ecom/user/add-to-cart", {
-    data: { _id: userId, product: product },
-    headers: { Authorization: token, 'Content-Type': 'application/json' }
-});
-```
-
-> Lưu ý: `userId` lấy trực tiếp từ response của API login (`loginResponseJson.userId`), không cần decode token.
+> **Đính chính:** Lúc đầu mình từng nghi ngờ (sai) là do tài khoản chưa có sản phẩm trong giỏ hàng, nên đã thêm bước gọi API `add-to-cart` trước khi `create-order`. Sau khi đối chiếu với code mẫu của giảng viên (không hề có bước add-to-cart) và test lại trực tiếp, xác nhận: **không cần add-to-cart**. Lý do lúc debug bị nhầm là vì đã đổi 2 thứ cùng lúc (vừa thêm add-to-cart, vừa sửa `orders` thành mảng) nên tưởng nhầm add-to-cart là nguyên nhân. Chỉ cần sửa đúng Lỗi 3 bên dưới là đủ.
 
 ---
 
-## Lỗi 3: Vẫn `orders: []` dù đã add-to-cart thành công
+## Lỗi 3: `orders` phải là mảng, không phải object đơn
 
-**Nguyên nhân:** `add-to-cart` chạy đúng (`"message":"Product Added To Cart"`), nhưng `create-order` vẫn trả rỗng. Lấy đúng payload thật từ Network tab (view source) khi đặt hàng qua UI thì thấy:
+**Nguyên nhân:** Lấy đúng payload thật từ Network tab (view source) khi đặt hàng qua UI thì thấy:
 
 ```json
 {"orders":[{"country":"Japan","productOrderedId":"..."}]}
@@ -78,7 +63,7 @@ data: { orders: orderPayLoad }        // orderPayLoad là 1 object
 data: { orders: [orderPayLoad] }      // bọc trong mảng
 ```
 
-> Đây là bug thật của API (có thể do backend của trang luyện tập được cập nhật sau khi giảng viên quay video), không phải do tài khoản hay dữ liệu riêng của ai.
+Chỉ cần sửa đúng chỗ này là `create-order` trả về `orderId` thật ngay, không cần thêm bước add-to-cart hay lấy danh sách sản phẩm nào khác.
 
 ---
 
@@ -143,3 +128,40 @@ await this.addToCart(product);   // truyền cả object, không phải product.
 3. **Khi response "thành công" nhưng dữ liệu rỗng/sai** — mở DevTools → Network, thao tác thật trên UI, so sánh payload/response thật với những gì code đang gửi.
 4. **Viết script debug nhỏ** (dùng `fetch` gọi thẳng API, ngoài Playwright) để test nhanh từng bước mà không cần chạy cả trình duyệt.
 5. **Sửa từng lớp, verify từng bước** — đừng sửa nhiều chỗ cùng lúc rồi mới chạy lại, sẽ khó biết chỗ nào thực sự fix được lỗi.
+
+---
+
+## Ghi chú: `await` và thứ tự ưu tiên toán tử khi gọi method nối chuỗi (vd `.trim()`)
+
+**Vấn đề:** Tại sao không viết được:
+```js
+await page.locator(".booking-ref").first().innerText().trim();
+```
+mà phải viết:
+```js
+(await page.locator(".booking-ref").first().innerText()).trim();
+```
+
+**Nguyên nhân:** `page.locator(...).first().innerText()` trả về một **Promise\<string\>**, chưa phải string ngay. Nếu gọi `.trim()` ngay sau `.innerText()` mà chưa `await`, JS hiểu là:
+
+```js
+await ( page.locator(...).first().innerText().trim() )
+```
+
+tức là `.trim()` bị gọi **trên Promise** (vì `.innerText()` lúc đó vẫn chưa được `await`), trong khi Promise không có method `.trim()` → lỗi:
+```
+TypeError: ...innerText(...).trim is not a function
+```
+
+**Cách fix:** Bọc `await ...` trong ngoặc `( )` để ép JS await xong, resolve Promise thành string thật, rồi mới gọi `.trim()` trên string đó:
+```js
+(await page.locator(".booking-ref").first().innerText()).trim();
+```
+
+Hoặc tách 2 dòng cho dễ đọc / dễ debug (có thể `console.log` giá trị trước khi trim):
+```js
+const text = await page.locator(".booking-ref").first().innerText();
+const bookingRef = text.trim();
+```
+
+**Quy tắc chung:** `await` chỉ "mở khóa" giá trị Promise ngay tại vị trí nó đứng. Muốn gọi tiếp method/property trên giá trị đã resolve, phải await xong trước (bọc ngoặc hoặc tách biến), không thể nối `.method()` ngay sau lời gọi async chưa được await.
