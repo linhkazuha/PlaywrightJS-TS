@@ -14,6 +14,7 @@ const config = defineConfig({
   use: {
     browserName: 'chromium',
     headless: false,
+    trace: 'retain-on-failure',
   }, 
 
 });

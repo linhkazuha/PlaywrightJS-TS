@@ -1,0 +1,31 @@
+# First get the storage account resource ID
+# Bước 1: Lấy resource ID (định danh) của storage account trên Azure
+# --name: tên storage account (mỗi học viên có tên riêng)
+# --resource-group: resource group chứa storage account đó
+# --query id -o tsv: chỉ lấy trường "id", xuất ra dạng text thuần (không phải JSON)
+# Kết quả trả về dạng: /subscriptions/.../storageAccounts/<tên-storage-account>
+az storage account show \
+  --name "pwstrgrrd4320" \
+  --resource-group "rrd" \
+  --query id -o tsv
+
+
+
+
+# Dấu // chỉ để phân cách trực quan giữa 2 lệnh trong note, KHÔNG phải cú pháp thật
+# -> không paste dòng này vào terminal
+//
+
+# Bước 2: Gán quyền (role) cho user/service principal lên storage account
+# --assignee: object ID (GUID) của user hoặc service principal được cấp quyền
+# --role: tên role cần gán, "Storage Blob Data Contributor" = quyền đọc/ghi blob
+# --scope: dùng command substitution $(...) để chạy luôn lệnh "az storage account show"
+#          bên trong -> kết quả (resource ID) được tự động điền vào --scope
+#          (gộp bước 1 và bước 2 thành 1 lệnh, không cần copy-paste thủ công)
+# Lưu ý: tên storage account ở đây (pwstrgrrd9171) khác với ở bước 1 (pwstrgrrd4320)
+#        -> có thể giảng viên gộp note từ 2 lần demo khác nhau. Khi áp dụng thực tế,
+#        phải dùng ĐÚNG TÊN storage account của chính mình ở CẢ HAI chỗ.
+  az role assignment create \
+  --assignee "a5730766-84f8-4d8e-bbed-54f85d7ff" \
+  --role "Storage Blob Data Contributor" \
+  --scope "$(az storage account show --name pwstrgrrd9171 --resource-group rrd --query id -o tsv)"

@@ -1,13 +1,13 @@
-const { test, expect } = require('@playwright/test');
-const { customTest } = require('./utils/test-base');
+import { test, expect } from '@playwright/test';
+import { customTest } from './utils_typescript/test-base';
 
-const { POManager } = require('../pageobjects/POManager');
+import { POManager } from '../pageobjects_ts/POManager';
 const dataset = JSON.parse(JSON.stringify(require("./utils/placeorderTestData.json")));
 
 for (const data of dataset) {
     test(`Client App Login for ${data.productName}`, async ({ page }) => {
         const poManager = new POManager(page);
-        
+
         const loginPage = poManager.getLoginPage();
         await loginPage.goTo();
         await loginPage.validLogin(data.username, data.password);

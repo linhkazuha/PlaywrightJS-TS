@@ -4,13 +4,17 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "test": "npx playwright test"
+    "regression": "npx playwright test"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@azure/identity": "^4.13.1",
+    "@azure/playwright": "^1.1.6",
+    "@cucumber/cucumber": "^13.2.1",
     "@playwright/test": "^1.62.0",
-    "@types/node": "^26.1.2"
+    "@types/node": "^26.1.2",
+    "exceljs": "^4.4.0"
   }
 }
